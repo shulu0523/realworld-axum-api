@@ -44,6 +44,7 @@ pub struct UserData {
     pub username: String,
     pub bio: String,
     pub image: Option<String>,
+    pub email_verified: bool,  // NEW FIELD
 }
 
 impl UserData {
@@ -52,8 +53,36 @@ impl UserData {
             email: user.email,
             token,
             username: user.username,
-            bio: user.bio.unwrap_or_default(), // Empty string if None
-            image: user.image,                 // Keep as Option<String>
+            bio: user.bio.unwrap_or_default(),
+            image: user.image,
+            email_verified: user.email_verified,  // NEW
         }
     }
+}
+
+// Refresh token request
+#[derive(Debug, Deserialize, Validate)]
+pub struct RefreshTokenRequest {
+    #[validate(length(min = 1, message = "Refresh token is required"))]
+    pub refresh_token: String,
+}
+
+// Refresh token response
+#[derive(Debug, Serialize)]
+pub struct RefreshTokenResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
+// Logout request
+#[derive(Debug, Deserialize, Validate)]
+pub struct LogoutRequest {
+    #[validate(length(min = 1, message = "Refresh token is required"))]
+    pub refresh_token: String,
+}
+
+// Logout response
+#[derive(Debug, Serialize)]
+pub struct LogoutResponse {
+    pub message: String,
 }

@@ -35,7 +35,7 @@ dotenvy = "0.15"
 
 # Auth
 bcrypt = "0.18"
-jsonwebtoken = "10.3"
+jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
 async-trait = "0.1"
 
 # Email sending (we'll use this later)

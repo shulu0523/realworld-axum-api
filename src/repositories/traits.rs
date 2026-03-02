@@ -1,7 +1,39 @@
 use async_trait::async_trait;
 use sqlx::Error as SqlxError;
 use uuid::Uuid;
-use crate::models::User;
+use crate::models::{EmailVerificationToken, User, PasswordResetToken, RefreshToken};
+
+#[async_trait]
+pub trait PasswordResetRepositoryTrait: Send + Sync {
+    async fn create_token(
+        &self,
+        user_id: Uuid,
+        token: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<PasswordResetToken, SqlxError>;
+
+    async fn find_by_token(&self, token: &str) -> Result<Option<PasswordResetToken>, SqlxError>;
+
+    async fn delete_token(&self, token: &str) -> Result<(), SqlxError>;
+
+    async fn delete_all_user_tokens(&self, user_id: Uuid) -> Result<(), SqlxError>;
+}
+
+#[async_trait]
+pub trait EmailVerificationRepositoryTrait: Send + Sync {
+    async fn create_token(
+        &self,
+        user_id: Uuid,
+        token: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<EmailVerificationToken, SqlxError>;
+
+    async fn find_by_token(&self, token: &str) -> Result<Option<EmailVerificationToken>, SqlxError>;
+
+    async fn delete_token(&self, token: &str) -> Result<(), SqlxError>;
+
+    async fn verify_user_email(&self, user_id: Uuid) -> Result<(), SqlxError>;
+}
 
 #[async_trait]
 pub trait UserRepositoryTrait: Send + Sync {
@@ -26,4 +58,32 @@ pub trait UserRepositoryTrait: Send + Sync {
         bio: Option<&str>,
         image: Option<&str>,
     ) -> Result<Option<User>, SqlxError>;
+
+    async fn delete(&self, user_id: Uuid) -> Result<(), SqlxError>;
+
+    async fn update_password(
+        &self,
+        user_id: Uuid,
+        password_hash: &str,
+    ) -> Result<(), SqlxError>;
+    
 }
+
+#[async_trait]
+pub trait RefreshTokenRepositoryTrait: Send + Sync {
+    async fn create_token(
+        &self,
+        user_id: Uuid,
+        token: &str,
+    ) -> Result<RefreshToken, SqlxError>;
+
+    async fn find_by_token(&self, token: &str) -> Result<Option<RefreshToken>, SqlxError>;
+
+    async fn delete_token(&self, token: &str) -> Result<(), SqlxError>;
+
+    async fn delete_all_user_tokens(&self, user_id: Uuid) -> Result<(), SqlxError>;
+
+    async fn mark_token_as_used(&self, token: &str) -> Result<(), SqlxError>;
+}
+
+

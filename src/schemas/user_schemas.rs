@@ -1,29 +1,56 @@
-use async_trait::async_trait;
-use sqlx::Error as SqlxError;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::models::User;
+use validator::Validate;
 
-#[async_trait]
-pub trait UserRepositoryTrait: Send + Sync {
-    async fn create(
-        &self,
-        username: &str,
-        email: &str,
-        password_hash: &str,
-    ) -> Result<User, SqlxError>;
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 3, max = 50, message = "Username must be between 3 and 50 characters"))]
+    pub username: String,
 
-    async fn find_by_id(&self, user_id: Uuid) -> Result<Option<User>, SqlxError>;
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
 
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, SqlxError>;
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    pub password: String,
+}
 
-    async fn find_by_username(&self, username: &str) -> Result<Option<User>, SqlxError>;
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateUserRequest {
+    #[validate(length(min = 3, max = 50, message = "Username must be between 3 and 50 characters"))]
+    pub username: Option<String>,
 
-    async fn update(
-        &self,
-        id: Uuid,
-        username: Option<&str>,
-        email: Option<&str>,
-        bio: Option<&str>,
-        image: Option<&str>,
-    ) -> Result<Option<User>, SqlxError>;
+    #[validate(email(message = "Invalid email format"))]
+    pub email: Option<String>,
+
+    #[validate(length(max = 500, message = "Bio cannot exceed 500 characters"))]
+    pub bio: Option<String>,
+
+    #[validate(url(message = "Image must be a valid URL"))]
+    pub image: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserResponse {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub bio: Option<String>,
+    pub image: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<crate::models::user::User> for UserResponse {
+    fn from(user: crate::models::user::User) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            bio: user.bio,
+            image: user.image,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+        }
+    }
 }

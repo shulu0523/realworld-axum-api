@@ -27,8 +27,8 @@ impl UserRepositoryTrait for UserRepository {
             r#"
             INSERT INTO users (username, email, password_hash)
             VALUES ($1, $2, $3)
-            RETURNING id, username, email, password_hash, bio, image,
-                      created_at, updated_at
+            RETURNING id, username, email, password_hash, bio, image, 
+                      email_verified, created_at, updated_at
             "#,
         )
         .bind(username)
@@ -43,8 +43,8 @@ impl UserRepositoryTrait for UserRepository {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, sqlx::Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, bio, image,
-                   created_at, updated_at
+            SELECT id, username, email, password_hash, bio, image, 
+                   email_verified, created_at, updated_at
             FROM users
             WHERE id = $1
             "#,
@@ -59,8 +59,8 @@ impl UserRepositoryTrait for UserRepository {
     async fn find_by_email(&self, email: &str) -> Result<Option<User>, sqlx::Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, bio, image,
-                   created_at, updated_at
+            SELECT id, username, email, password_hash, bio, image, 
+                   email_verified, created_at, updated_at
             FROM users
             WHERE email = $1
             "#,
@@ -75,8 +75,8 @@ impl UserRepositoryTrait for UserRepository {
     async fn find_by_username(&self, username: &str) -> Result<Option<User>, sqlx::Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, bio, image,
-                   created_at, updated_at
+            SELECT id, username, email, password_hash, bio, image, 
+                   email_verified, created_at, updated_at
             FROM users
             WHERE username = $1
             "#,
@@ -104,8 +104,8 @@ impl UserRepositoryTrait for UserRepository {
                 bio = COALESCE($4, bio),
                 image = COALESCE($5, image)
             WHERE id = $1
-            RETURNING id, username, email, password_hash, bio, image,
-                      created_at, updated_at
+            RETURNING id, username, email, password_hash, bio, image, 
+                      email_verified, created_at, updated_at
             "#,
         )
         .bind(id)
@@ -117,5 +117,35 @@ impl UserRepositoryTrait for UserRepository {
         .await?;
 
         Ok(user)
+    }
+
+    async fn delete(&self, user_id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            DELETE FROM users
+            WHERE id = $1
+            "#,
+        )
+        .bind(user_id)
+        .execute(&self.db)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn update_password(&self, user_id: Uuid, password_hash: &str) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_hash = $2
+            WHERE id = $1
+            "#,
+        )
+        .bind(user_id)
+        .bind(password_hash)
+        .execute(&self.db)
+        .await?;
+
+        Ok(())
     }
 }
