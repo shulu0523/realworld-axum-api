@@ -49,7 +49,7 @@ pub struct UserData {
     pub email: String,
     pub token: String,
     pub username: String,
-    pub bio: String,
+    pub bio: Option<String>,
     pub image: Option<String>,
     pub email_verified: bool,  // NEW FIELD
 }
@@ -60,7 +60,7 @@ impl UserData {
             email: user.email,
             token,
             username: user.username,
-            bio: user.bio.unwrap_or_default(),
+            bio: user.bio,
             image: user.image,
             email_verified: user.email_verified,  // NEW
         }

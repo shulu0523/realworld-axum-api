@@ -14,7 +14,7 @@ pub struct EmailService {
 
 impl EmailService {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        println!("Initializing email service...");
+        //println!("Initializing email service...");
         let smtp_host = env::var("SMTP_HOST").expect("SMTP_HOST must be set");
         let smtp_port: u16 = env::var("SMTP_PORT")
             .expect("SMTP_PORT must be set")

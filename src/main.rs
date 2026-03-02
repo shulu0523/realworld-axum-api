@@ -3,15 +3,22 @@ use axum::{
     Router,
 };
 use std::env;
+use tracing_subscriber::EnvFilter;
 
 // Import from the library crate
 use realworld_axum_api::{
     handlers::{register, login, health_check, current_user, verify_email, delete_user, reset_password, forgot_password, refresh_token, logout},
     state::AppState,
+    middleware::rate_limit::rate_limit_middleware,
 };
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+    
     dotenvy::dotenv().ok();
 
     let database_url =
@@ -21,12 +28,12 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
-    println!("Connected to database successfully!");
+    tracing::info!("Connected to database successfully!");
 
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/users", post(register))
-        .route("/api/users/login", post(login))
+        .route("/api/users/login", post(login).layer(axum::middleware::from_fn(rate_limit_middleware)))
         .route("/api/user", get(current_user))
         .route("/api/user", delete(delete_user))
         .route("/api/auth/verify-email", get(verify_email))
@@ -38,18 +45,18 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
-    println!("Server running on http://localhost:3000");
-    println!("Available endpoints:");
-    println!("  POST /api/users         - Register new user");
-    println!("  POST /api/users/login   - Login existing user");
-    println!("  GET  /api/user          - Get current user (requires auth)");
-    println!("  DELETE /api/user       - Delete current user (requires auth)");
-    println!("  GET  /api/auth/verify-email - Verify user email (requires auth)");
-    println!("  POST /api/auth/forgot-password - Request password reset");
-    println!("  POST /api/auth/reset-password - Reset user password");
-    println!("  POST /api/auth/refresh-token - Refresh access token");
-    println!("  POST /api/auth/logout   - Logout user");
-    println!("  GET  /health            - Health check");
+    tracing::info!("Server running on http://localhost:3000");
+    tracing::info!("Available endpoints:");
+    tracing::info!("  POST /api/users         - Register new user");
+    tracing::info!("  POST /api/users/login   - Login existing user");
+    tracing::info!("  GET  /api/user          - Get current user (requires auth)");
+    tracing::info!("  DELETE /api/user       - Delete current user (requires auth)");
+    tracing::info!("  GET  /api/auth/verify-email - Verify user email (requires auth)");
+    tracing::info!("  POST /api/auth/forgot-password - Request password reset");
+    tracing::info!("  POST /api/auth/reset-password - Reset user password");
+    tracing::info!("  POST /api/auth/refresh-token - Refresh access token");
+    tracing::info!("  POST /api/auth/logout   - Logout user");
+    tracing::info!("  GET  /health            - Health check");
 
     axum::serve(listener, app).await.unwrap();
 }

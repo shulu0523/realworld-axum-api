@@ -6,3 +6,4 @@ pub mod state;
 pub mod auth;
 pub mod utils;
 pub mod services; // Add this
+pub mod middleware; // Add this

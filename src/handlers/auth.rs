@@ -1,6 +1,6 @@
 use crate::{
     auth::{
-        jwt::generate_token, middleware::RequireAuth, password::hash_password
+        jwt::generate_token, middleware::RequireAuth, password::{hash_password, verify_password}
     },
     schemas::{password_reset_schemas::*, auth_schemas::*},
     state::AppState,
@@ -8,6 +8,7 @@ use crate::{
 };
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::{Duration, Utc};  // NEW
+use tracing::{info, error};
 use validator::Validate;
 
 
@@ -86,72 +87,72 @@ pub async fn login(
     Json(payload): Json<LoginUserRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
     // Validate input
-    println!("Login attempt for email: {}", payload.user.email);
+    info!("Login attempt for email: {}", payload.user.email);
     
     payload.user.validate().map_err(|err| {
-        println!("Invalid login request: {}", err);
+        error!("Invalid login request: {}", err);
         StatusCode::BAD_REQUEST
     })?;
 
     // Find user by email
-    println!("Finding user by email: {}", payload.user.email);
+    info!("Finding user by email: {}", payload.user.email);
     let user = state
         .user_repository
         .find_by_email(&payload.user.email)
         .await
         .map_err(|err| {
-            println!("Failed to find user by email: {}", err);
+            error!("Failed to find user by email: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    println!("Found user: {} (ID: {})", user.username, user.id);
+    info!("Found user: {} (ID: {})", user.username, user.id);
 
-    // // Verify password
-    // let password_valid =
-    //     verify_password(&payload.user.password, &user.password_hash).map_err(|err| {
-    //         println!("Failed to verify password: {}", err);
-    //         StatusCode::INTERNAL_SERVER_ERROR
-    //     })?;
+    // Verify password
+    let password_valid =
+        verify_password(&payload.user.password, &user.password_hash).map_err(|err| {
+            error!("Failed to verify password: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    // if !password_valid {
-    //     println!("Invalid password for user: {}", user.email);
-    //     return Err(StatusCode::UNAUTHORIZED);
-    // }
+    if !password_valid {
+        error!("Invalid password for user: {}", user.email);
+        return Err(StatusCode::UNAUTHORIZED);
+    }
 
     // Generate JWT token
-    println!("Generating JWT token for user: {}", user.id);
+    info!("Generating JWT token for user: {}", user.id);
     let jwt_secret = std::env::var("JWT_SECRET").map_err(|err| {
-        println!("Failed to get JWT_SECRET: {}", err);
+        error!("Failed to get JWT_SECRET: {}", err);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     
     let access_token = generate_token(&user.id, &jwt_secret).map_err(|err| {
-        println!("Failed to generate access token: {}", err);
+        error!("Failed to generate access token: {}", err);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
     // Generate refresh token
     let refresh_token = generate_refresh_token();
-    println!("Generated refresh token: {}", refresh_token);
+    info!("Generated refresh token: {}", refresh_token);
 
     // Save refresh token to database
-    println!("Saving refresh token to database for user: {}", user.id);
+    info!("Saving refresh token to database for user: {}", user.id);
     state
         .refresh_token_repository
         .create_token(user.id, &refresh_token)
         .await
         .map_err(|err| {
-            println!("Failed to save refresh token: {}", err);
+            error!("Failed to save refresh token: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    println!("Refresh token saved successfully");
+    info!("Refresh token saved successfully");
     let user_data = UserData {
         email: user.email,
         token: access_token.clone(),
         username: user.username,
-        bio: user.bio.unwrap_or_default(),
+        bio: user.bio,
         image: user.image,
         email_verified: user.email_verified,
     };
@@ -161,7 +162,7 @@ pub async fn login(
         refresh_token,
     };
 
-    println!("Login successful");
+    info!("Login successful");
     Ok(Json(response))
 }
 
