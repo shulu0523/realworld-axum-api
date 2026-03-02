@@ -84,7 +84,7 @@ pub async fn register(
 pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginUserRequest>,
-) -> Result<Json<UserResponse>, StatusCode> {
+) -> Result<Json<LoginResponse>, StatusCode> {
     // Validate input
     println!("Login attempt for email: {}", payload.user.email);
     
@@ -147,8 +147,19 @@ pub async fn login(
         })?;
 
     println!("Refresh token saved successfully");
-    let user_data = UserData::from_user_with_token(user, access_token);
-    let response = UserResponse { user: user_data };
+    let user_data = UserData {
+        email: user.email,
+        token: access_token.clone(),
+        username: user.username,
+        bio: user.bio.unwrap_or_default(),
+        image: user.image,
+        email_verified: user.email_verified,
+    };
+    let response = LoginResponse {
+        user: user_data,
+        access_token,
+        refresh_token,
+    };
 
     println!("Login successful");
     Ok(Json(response))

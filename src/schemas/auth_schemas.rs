@@ -23,6 +23,13 @@ pub struct LoginUserRequest {
     pub user: LoginUserData,
 }
 
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub user: UserData,
+    pub access_token: String,   // New: separate access token
+    pub refresh_token: String,  // New: refresh token
+}
+
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginUserData {
     #[validate(email(message = "Invalid email format"))]
