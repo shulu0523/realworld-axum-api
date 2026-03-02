@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use validator::Validate;
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterUserRequest {
@@ -52,6 +54,7 @@ pub struct UserData {
     pub bio: Option<String>,
     pub image: Option<String>,
     pub email_verified: bool,  // NEW FIELD
+    pub role: crate::models::user::UserRole,  // NEW FIELD
 }
 
 impl UserData {
@@ -63,6 +66,7 @@ impl UserData {
             bio: user.bio,
             image: user.image,
             email_verified: user.email_verified,  // NEW
+            role: user.role,  // NEW
         }
     }
 }
@@ -92,4 +96,52 @@ pub struct LogoutRequest {
 #[derive(Debug, Serialize)]
 pub struct LogoutResponse {
     pub message: String,
+}
+
+// Session response
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub is_used: bool,
+}
+
+// Sessions list response
+#[derive(Debug, Serialize)]
+pub struct SessionsListResponse {
+    pub sessions: Vec<SessionResponse>,
+}
+
+// Terminate session request
+#[derive(Debug, Deserialize, Validate)]
+pub struct TerminateSessionRequest {
+    #[validate(length(min = 1, message = "Session ID is required"))]
+    pub session_id: String,
+}
+
+// Terminate session response
+#[derive(Debug, Serialize)]
+pub struct TerminateSessionResponse {
+    pub message: String,
+}
+
+// Delete account request
+#[derive(Debug, Deserialize, Validate)]
+pub struct DeleteAccountRequest {
+    #[validate(length(min = 1, message = "Password is required"))]
+    pub password: String,
+}
+
+// Delete account response
+#[derive(Debug, Serialize)]
+pub struct DeleteAccountResponse {
+    pub message: String,
+}
+
+// User data export response
+#[derive(Debug, Serialize)]
+pub struct UserDataExportResponse {
+    pub user: serde_json::Value,
+    pub export_date: DateTime<Utc>,
 }

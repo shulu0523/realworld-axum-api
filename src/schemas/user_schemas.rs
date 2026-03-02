@@ -37,6 +37,8 @@ pub struct UserResponse {
     pub email: String,
     pub bio: Option<String>,
     pub image: Option<String>,
+    pub email_verified: bool,
+    pub role: crate::models::user::UserRole,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -49,6 +51,8 @@ impl From<crate::models::user::User> for UserResponse {
             email: user.email,
             bio: user.bio,
             image: user.image,
+            email_verified: user.email_verified,
+            role: user.role,
             created_at: user.created_at,
             updated_at: user.updated_at,
         }

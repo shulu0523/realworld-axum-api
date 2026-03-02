@@ -22,18 +22,20 @@ impl UserRepositoryTrait for UserRepository {
         username: &str,
         email: &str,
         password_hash: &str,
+        role: &crate::models::user::UserRole,
     ) -> Result<User, sqlx::Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (username, email, password_hash)
-            VALUES ($1, $2, $3)
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES ($1, $2, $3, $4)
             RETURNING id, username, email, password_hash, bio, image, 
-                      email_verified, created_at, updated_at
+                      email_verified, role, created_at, updated_at
             "#,
         )
         .bind(username)
         .bind(email)
         .bind(password_hash)
+        .bind(role)
         .fetch_one(&self.db)
         .await?;
 
@@ -44,7 +46,7 @@ impl UserRepositoryTrait for UserRepository {
         let user = sqlx::query_as::<_, User>(
             r#"
             SELECT id, username, email, password_hash, bio, image, 
-                   email_verified, created_at, updated_at
+                   email_verified, role, created_at, updated_at
             FROM users
             WHERE id = $1
             "#,
@@ -60,7 +62,7 @@ impl UserRepositoryTrait for UserRepository {
         let user = sqlx::query_as::<_, User>(
             r#"
             SELECT id, username, email, password_hash, bio, image, 
-                   email_verified, created_at, updated_at
+                   email_verified, role, created_at, updated_at
             FROM users
             WHERE email = $1
             "#,
@@ -76,7 +78,7 @@ impl UserRepositoryTrait for UserRepository {
         let user = sqlx::query_as::<_, User>(
             r#"
             SELECT id, username, email, password_hash, bio, image, 
-                   email_verified, created_at, updated_at
+                   email_verified, role, created_at, updated_at
             FROM users
             WHERE username = $1
             "#,
@@ -105,7 +107,7 @@ impl UserRepositoryTrait for UserRepository {
                 image = COALESCE($5, image)
             WHERE id = $1
             RETURNING id, username, email, password_hash, bio, image, 
-                      email_verified, created_at, updated_at
+                      email_verified, role, created_at, updated_at
             "#,
         )
         .bind(id)

@@ -1,7 +1,5 @@
 use crate::{
-    auth::{
-        jwt::generate_token, middleware::RequireAuth, password::{hash_password, verify_password}
-    },
+    auth::{jwt::generate_token, middleware::RequireAuth, password::{hash_password, verify_password}},
     schemas::{password_reset_schemas::*, auth_schemas::*},
     state::AppState,
     utils::{generate_verification_token, generate_refresh_token},  // NEW
@@ -10,6 +8,7 @@ use axum::{extract::State, http::StatusCode, Json};
 use chrono::{Duration, Utc};  // NEW
 use tracing::{info, error};
 use validator::Validate;
+use uuid::Uuid;
 
 
 pub async fn register(
@@ -46,7 +45,7 @@ pub async fn register(
 
     let user = state
         .user_repository
-        .create(&payload.user.username, &payload.user.email, &password_hash)
+        .create(&payload.user.username, &payload.user.email, &password_hash, &crate::models::user::UserRole::User)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -155,6 +154,7 @@ pub async fn login(
         bio: user.bio,
         image: user.image,
         email_verified: user.email_verified,
+        role: user.role,
     };
     let response = LoginResponse {
         user: user_data,
@@ -211,7 +211,7 @@ pub async fn verify_email(
         .email_verification_repository
         .find_by_token(token)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to find email verification token: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?
@@ -224,7 +224,7 @@ pub async fn verify_email(
             .email_verification_repository
             .delete_token(token)
             .await
-            .map_err(|err| {
+            .map_err(|_err| {
                 //error!("Failed to delete expired email verification token: {}", err);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
@@ -237,7 +237,7 @@ pub async fn verify_email(
         .email_verification_repository
         .verify_user_email(verification_token.user_id)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to verify user email: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -247,7 +247,7 @@ pub async fn verify_email(
         .email_verification_repository
         .delete_token(token)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to delete email verification token: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -271,7 +271,7 @@ pub async fn forgot_password(
         .user_repository
         .find_by_email(&payload.email)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to find user by email: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -295,7 +295,7 @@ pub async fn forgot_password(
         .password_reset_repository
         .create_token(user.id, &reset_token, expires_at)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to create password reset token: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -305,7 +305,7 @@ pub async fn forgot_password(
         .email_service
         .send_password_reset_email(&user.email, &user.username, &reset_token)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to send password reset email: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -321,7 +321,7 @@ pub async fn reset_password(
     Json(payload): Json<ResetPasswordRequest>,
 ) -> Result<Json<ResetPasswordResponse>, StatusCode> {
     // Validate new password
-    payload.validate().map_err(|err| {
+    payload.validate().map_err(|_err| {
         //error!("Failed to validate password reset request: {}", err);
         StatusCode::BAD_REQUEST
     })?;
@@ -331,7 +331,7 @@ pub async fn reset_password(
         .password_reset_repository
         .find_by_token(&payload.token)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //r!("Failed to find password reset token: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?
@@ -344,7 +344,7 @@ pub async fn reset_password(
             .password_reset_repository
             .delete_token(&payload.token)
             .await
-            .map_err(|err| {
+            .map_err(|_err| {
                 //error!("Failed to delete expired password reset token: {}", err);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
@@ -353,7 +353,7 @@ pub async fn reset_password(
     }
 
     // Hash new password
-    let new_password_hash = hash_password(&payload.new_password).map_err(|err| {
+    let new_password_hash = hash_password(&payload.new_password).map_err(|_err| {
         //error!("Failed to hash new password: {}", err);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -363,7 +363,7 @@ pub async fn reset_password(
         .user_repository
         .update_password(reset_token.user_id, &new_password_hash)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to update user password: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -373,7 +373,7 @@ pub async fn reset_password(
         .password_reset_repository
         .delete_all_user_tokens(reset_token.user_id)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             //error!("Failed to delete all user tokens: {}", err);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -482,4 +482,162 @@ pub async fn logout(
     Ok(Json(LogoutResponse {
         message: "Logged out successfully".to_string(),
     }))
+}
+
+// Get user sessions
+pub async fn get_sessions(
+    State(state): State<AppState>,
+    RequireAuth(user): RequireAuth,
+) -> Result<Json<SessionsListResponse>, StatusCode> {
+    // Get all refresh tokens for the user
+    let tokens = state
+        .refresh_token_repository
+        .find_by_user_id(user.id)
+        .await
+        .map_err(|err| {
+            error!("Failed to get user sessions: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Convert tokens to session responses
+    let sessions: Vec<SessionResponse> = tokens
+        .into_iter()
+        .map(|token| SessionResponse {
+            id: token.id,
+            created_at: token.created_at,
+            expires_at: token.expires_at,
+            is_used: token.is_used,
+        })
+        .collect();
+
+    let response = SessionsListResponse {
+        sessions,
+    };
+
+    Ok(Json(response))
+}
+
+// Terminate a session
+pub async fn terminate_session(
+    State(state): State<AppState>,
+    RequireAuth(user): RequireAuth,
+    Json(payload): Json<TerminateSessionRequest>,
+) -> Result<Json<TerminateSessionResponse>, StatusCode> {
+    // Validate input
+    payload.validate().map_err(|err| {
+        error!("Invalid terminate session request: {}", err);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    // Parse session ID
+    let session_id = Uuid::parse_str(&payload.session_id).map_err(|_| {
+        StatusCode::BAD_REQUEST
+    })?;
+
+    // Get the token
+    let token = state
+        .refresh_token_repository
+        .find_by_id(session_id)
+        .await
+        .map_err(|err| {
+            error!("Failed to find session: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Check if the token belongs to the user
+    if token.user_id != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Mark the token as used (terminate the session)
+    state
+        .refresh_token_repository
+        .mark_token_as_used(&token.token)
+        .await
+        .map_err(|err| {
+            error!("Failed to terminate session: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let response = TerminateSessionResponse {
+        message: "Session terminated successfully!".to_string(),
+    };
+
+    Ok(Json(response))
+}
+
+// Export user data
+pub async fn export_user_data(
+    State(_state): State<AppState>,
+    RequireAuth(user): RequireAuth,
+) -> Result<Json<UserDataExportResponse>, StatusCode> {
+    // Get user data
+    let user_data = serde_json::json!({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "bio": user.bio,
+        "image": user.image,
+        "email_verified": user.email_verified,
+        "role": user.role,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    });
+
+    let response = UserDataExportResponse {
+        user: user_data,
+        export_date: Utc::now(),
+    };
+
+    Ok(Json(response))
+}
+
+// Delete user account
+pub async fn delete_account(
+    State(state): State<AppState>,
+    RequireAuth(user): RequireAuth,
+    Json(payload): Json<DeleteAccountRequest>,
+) -> Result<Json<DeleteAccountResponse>, StatusCode> {
+    // Validate input
+    payload.validate().map_err(|err| {
+        error!("Invalid delete account request: {}", err);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    // Verify password
+    let is_valid = verify_password(&payload.password, &user.password_hash).map_err(|err| {
+        error!("Failed to verify password: {}", err);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_valid {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Delete all user tokens
+    state
+        .refresh_token_repository
+        .delete_all_user_tokens(user.id)
+        .await
+        .map_err(|err| {
+            error!("Failed to delete user tokens: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Delete user from database
+    state
+        .user_repository
+        .delete(user.id)
+        .await
+        .map_err(|err| {
+            error!("Failed to delete user: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let response = DeleteAccountResponse {
+        message: "Account deleted successfully!".to_string(),
+    };
+
+    Ok(Json(response))
 }

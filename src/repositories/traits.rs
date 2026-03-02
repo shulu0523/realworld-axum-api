@@ -42,6 +42,7 @@ pub trait UserRepositoryTrait: Send + Sync {
         username: &str,
         email: &str,
         password_hash: &str,
+        role: &crate::models::user::UserRole,
     ) -> Result<User, SqlxError>;
 
     async fn find_by_id(&self, user_id: Uuid) -> Result<Option<User>, SqlxError>;
@@ -78,6 +79,10 @@ pub trait RefreshTokenRepositoryTrait: Send + Sync {
     ) -> Result<RefreshToken, SqlxError>;
 
     async fn find_by_token(&self, token: &str) -> Result<Option<RefreshToken>, SqlxError>;
+
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<RefreshToken>, SqlxError>;
+
+    async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<RefreshToken>, SqlxError>;
 
     async fn delete_token(&self, token: &str) -> Result<(), SqlxError>;
 

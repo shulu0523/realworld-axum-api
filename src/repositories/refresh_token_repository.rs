@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{Utc, Duration};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -100,5 +100,36 @@ impl RefreshTokenRepositoryTrait for RefreshTokenRepository {
         .await?;
 
         Ok(())
+    }
+
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<RefreshToken>, sqlx::Error> {
+        let refresh_token = sqlx::query_as::<_, RefreshToken>(
+            r#"
+            SELECT id, user_id, token, expires_at, created_at, used_at, is_used
+            FROM refresh_tokens
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        Ok(refresh_token)
+    }
+
+    async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<RefreshToken>, sqlx::Error> {
+        let refresh_tokens = sqlx::query_as::<_, RefreshToken>(
+            r#"
+            SELECT id, user_id, token, expires_at, created_at, used_at, is_used
+            FROM refresh_tokens
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(refresh_tokens)
     }
 }
